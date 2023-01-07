@@ -6,6 +6,7 @@
 
 #include <QScrollBar>
 #include <QMessageBox>
+#include <QFileDialog>
 
 //-----------------------------------------------------------------------------------------------------------------------------------
 Statistic::Statistic(QWidget *parent) :
@@ -16,9 +17,32 @@ Statistic::Statistic(QWidget *parent) :
 
     m_ryzenControl = static_cast<RyzenControl*>(this->parent());
 
-    connect(ui->clearReferenceStatistic, &QPushButton::clicked, this, [ this ] () { m_referenceStatisticCounter = 0; m_referenceStatistic.fill({ .min = 0, .max = 0, .sum = 0 }); } );
+    connect(ui->clearReferenceStatistic, &QPushButton::clicked, this, [ this ] () {
+        m_referenceStatisticCounter = 0; m_referenceStatistic.fill({ .min = 0, .max = 0, .sum = 0 });
+        displayStatistic(m_referenceStatistic, m_referenceStatisticCounter, ui->referenceTable, ui->referenceStatisticCounter);
+    }   );
 
-    connect(ui->referenceTable->verticalScrollBar(), &QScrollBar::sliderMoved, [this] (int position) { ui->currentTable->verticalScrollBar()->setValue(position); });
+    connect(ui->clearCurrentStatistic, &QPushButton::clicked, this, [ this ] () {
+        m_currentStatisticCounter = 0; m_currentStatistic.fill({ .min = 0, .max = 0, .sum = 0 });
+        displayStatistic(m_currentStatistic, m_currentStatisticCounter, ui->currentTable, ui->currentStatisticCounter);
+    }   );
+
+
+    connect(ui->referenceTable->verticalScrollBar(), &QScrollBar::valueChanged, [this] (int position) { ui->currentTable->verticalScrollBar()->setValue(position); });
+    connect(ui->currentTable->verticalScrollBar(), &QScrollBar::valueChanged, [this] (int position) { ui->referenceTable->verticalScrollBar()->setValue(position); });
+
+    connect(ui->saveReference, &QPushButton::clicked, this, &Statistic::saveStatistic);
+    connect(ui->loadReference, &QPushButton::clicked, this, &Statistic::loadStatistic);
+    connect(ui->saveCurrent, &QPushButton::clicked, this, &Statistic::saveStatistic);
+    connect(ui->loadCurrent, &QPushButton::clicked, this, &Statistic::loadStatistic);
+
+    connect(ui->viewTestSettings, &QPushButton::clicked, &m_testSettingsWidget, &TestSettings::show);
+
+    //connect(&m_testSettingsWidget, &TestSettings::settingsAreRight, ui->startTest, &QPushButton::setEnabled);
+    connect(&m_testSettingsWidget, &TestSettings::settingsChanged, [this] (bool rightFlag, QString description, QString extendedDescription) {
+        ui->startTest->setEnabled(rightFlag); ui->labelTestSettingsDescription->setText(description); ui->labelTestSettingsDescription->setToolTip(extendedDescription); } );
+
+    m_testSettingsWidget.requestSettingsDescription();
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
@@ -28,24 +52,80 @@ Statistic::~Statistic()
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
+void Statistic::closeEvent(QCloseEvent *event)
+{
+    m_testSettingsWidget.close();
+    event->accept();
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------------
 void Statistic::setDescriptions(QVector<QString> descriptions)
 {
     m_names = descriptions;
     m_referenceStatistic.resize(descriptions.length());
     m_referenceStatisticCounter = 0;
     m_referenceStatistic.fill({ .min = 0, .max = 0, .sum = 0 });
+    m_currentStatistic.resize(descriptions.length());
+    m_currentStatisticCounter = 0;
+    m_currentStatistic.fill({ .min = 0, .max = 0, .sum = 0 });
     ui->referenceTable->setRowCount(descriptions.length());
     for (int i = 0; i < descriptions.length(); i++)
         ui->referenceTable->setVerticalHeaderItem(i, new QTableWidgetItem(QString("%1: %2").arg(i).arg(descriptions[i])));
     ui->currentTable->setRowCount(descriptions.length());
     for (int i = 0; i < descriptions.length(); i++)
         ui->currentTable->setVerticalHeaderItem(i, new QTableWidgetItem(QString("%1").arg(i)));
+    displayStatistic(m_referenceStatistic, m_referenceStatisticCounter, ui->referenceTable, ui->referenceStatisticCounter);
+    displayStatistic(m_currentStatistic, m_currentStatisticCounter, ui->currentTable, ui->currentStatisticCounter);
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
 void Statistic::setRyzenControlLink(RyzenControl *link)
 {
     m_ryzenControl = link;
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------------
+void Statistic::saveStatistic()
+{
+    QPushButton* sender = qobject_cast<QPushButton*>(this->sender());
+    QString saveFileName;
+    if (sender == 0)
+        saveFileName = QString("saved_statistic.txt");
+    else
+    {
+        saveFileName = QFileDialog::getSaveFileName(this);
+        if (saveFileName.isEmpty())
+            return;
+    }
+
+    if (sender == ui->saveCurrent)
+        saveStatisticToFile(m_currentStatistic, m_currentStatisticCounter, saveFileName);
+    else
+        saveStatisticToFile(m_referenceStatistic, m_referenceStatisticCounter, saveFileName);
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------------
+void Statistic::loadStatistic()
+{
+    QPushButton* sender = qobject_cast<QPushButton*>(this->sender());
+    QString loadFileName;
+    if (sender == 0)
+        loadFileName = QString("saved_statistic.txt");
+    else
+    {
+        loadFileName = QFileDialog::getOpenFileName(this);
+        if (loadFileName.isEmpty())
+            return;
+    }
+
+    bool isSuccess = false;
+    if (sender == ui->loadCurrent)
+        isSuccess = loadStatisticFromFile(m_currentStatistic, &m_currentStatisticCounter, loadFileName);
+    else
+        isSuccess = loadStatisticFromFile(m_referenceStatistic, &m_referenceStatisticCounter, loadFileName);
+
+    if (isSuccess)
+        displayStatistic(m_referenceStatistic, m_referenceStatisticCounter, ui->referenceTable, ui->referenceStatisticCounter);
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
@@ -106,6 +186,7 @@ void Statistic::handleNewValues(QVector<float> newValues)
         displayStatistic(*currentStatistic, *counter, table, counterLabel, newValues, *referenceStatistic);
     return;
 
+#if 0
     if (ui->enableCollectReferenceStatistic->isChecked())
     {
         if (newValues.length() != m_referenceStatistic.length())
@@ -136,6 +217,7 @@ void Statistic::handleNewValues(QVector<float> newValues)
         displayStatistic(m_referenceStatistic, m_referenceStatisticCounter, ui->referenceTable, ui->referenceStatisticCounter, newValues);
         //displayStatistic(m_referenceStatistic, ui->referenceTable, m_referenceStatisticCounter, newValues);
     }
+#endif
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
@@ -168,6 +250,23 @@ void Statistic::displayStatistic(QVector<StatisticData> currentStatistic, int co
     {
         for (int i = 0; i < currentStatistic.length(); i++)
         {
+            QVector<QTableWidgetItem*> currentItems(3);
+            currentItems[0] = new QTableWidgetItem(QString::number(currentStatistic[i].min, 'f', 3));
+            currentItems[1] = new QTableWidgetItem(QString::number(currentStatistic[i].max, 'f', 3));
+            currentItems[2] = new QTableWidgetItem(QString::number(currentStatistic[i].sum / counter, 'f', 3));
+
+            if (!referenceStatistic.isEmpty())
+            {
+                if (currentStatistic[i].min < (referenceStatistic[i].min - MIN_QREAL_DIFF))
+                    currentItems[0]->setBackground(QBrush(QColorConstants::Yellow));
+                if (currentStatistic[i].max > (referenceStatistic[i].max + MIN_QREAL_DIFF))
+                    currentItems[1]->setBackground(QBrush(QColorConstants::Yellow));
+            }
+
+            for (int j = 0; j < 3; j++)
+                table->setItem(i, j, currentItems[j]);
+            continue;
+
             table->setItem(i, 0, new QTableWidgetItem(QString::number(currentStatistic[i].min, 'f', 3)));
             table->setItem(i, 1, new QTableWidgetItem(QString::number(currentStatistic[i].max, 'f', 3)));
             table->setItem(i, 2, new QTableWidgetItem(QString::number(currentStatistic[i].sum / counter, 'f', 3)));
@@ -177,7 +276,7 @@ void Statistic::displayStatistic(QVector<StatisticData> currentStatistic, int co
     {
         for (int i = 0; i < currentStatistic.length(); i++)
         {
-            for (int j = 0; j < 2; j++)
+            for (int j = 0; j < 3; j++)
                 table->setItem(i, j, new QTableWidgetItem(QString("-")));
         }
     }
@@ -190,7 +289,8 @@ void Statistic::saveStatisticToFile(QVector<StatisticData> &currentStatistic, in
     QStringList dataToSave;
     dataToSave.append(QString("Counter: %1").arg(counter));
     for (int i = 0; i < currentStatistic.length(); i++)
-        dataToSave.append(QString("%1. %2: %3 - %4 - %5").arg(i).arg(m_names[i]).arg(currentStatistic[i].min).arg(currentStatistic[i].sum / counter).arg(currentStatistic[i].max));
+        dataToSave.append(QString("%1. %2: %3 - %4 - %5").arg(i).arg(m_names[i]).arg(QString::number(currentStatistic[i].min, 'f', 7)).
+                          arg(QString::number(currentStatistic[i].sum / counter, 'f', 7)).arg(QString::number(currentStatistic[i].max, 'f', 7)));
 
     QFile fileForSave(fileName);
     if (!fileForSave.open(QFile::WriteOnly))
@@ -203,27 +303,27 @@ void Statistic::saveStatisticToFile(QVector<StatisticData> &currentStatistic, in
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
-void Statistic::loadStatisticFromFile(QVector<StatisticData> &currentStatistic, int *counter, QString fileName)
+bool Statistic::loadStatisticFromFile(QVector<StatisticData> &currentStatistic, int *counter, QString fileName)
 {
     QVector<StatisticData> tempStatistic(currentStatistic.length());
     int tempStatisticCounter = 0;
-    bool conversionSuccess = false;
+    bool conversionSuccess = true;
 
     QFile loadedFile(fileName);
     if (!loadedFile.open(QFile::ReadOnly))
     {
         QMessageBox::warning(this, QString("Open file error"), QString("Cannot open file %1").arg(fileName));
-        return;
+        return false;
     }
-    QString data = QString::fromLocal8Bit(loadedFile.readAll()).simplified();
+    QString data = QString::fromLocal8Bit(loadedFile.readAll());
     loadedFile.close();
 
-    QStringList dataLines = data.simplified().split("\r\n");
+    QStringList dataLines = data.split("\n");
     if (dataLines.length() != (1 + currentStatistic.length()))
     {
         QMessageBox::warning(this, QString("File parsing error"), QString("File %1 has %2 lines, need %3 lines").arg(fileName).
                              arg(dataLines.length()).arg(1 + currentStatistic.length()));
-        return;
+        return false;
     }
 
     QStringList counterStringSplitted = dataLines[0].split(" ");
@@ -231,7 +331,7 @@ void Statistic::loadStatisticFromFile(QVector<StatisticData> &currentStatistic, 
     {
         QMessageBox::warning(this, QString("File parsing error"), QString("File %1 has first line (%2) in uncorrect format (correct - Counter: X, where X - statistic counter)").
                              arg(fileName).arg(dataLines[0]));
-        return;
+        return false;
     }
 
     tempStatisticCounter = counterStringSplitted[1].toInt(&conversionSuccess);
@@ -239,13 +339,46 @@ void Statistic::loadStatisticFromFile(QVector<StatisticData> &currentStatistic, 
     {
         QMessageBox::warning(this, QString("File parsing error"), QString("File %1 has uncorrect value (%2) of statistic counter (must be positive number)").
                              arg(fileName).arg(counterStringSplitted[1]));
-        return;
+        return false;
     }
 
     for (int i = 0; i < tempStatistic.length(); i++)
     {
-
+        // ("%1. %2: %3 - %4 - %5")
+        QStringList counterStringSplitted = dataLines[i + 1].split(" ");
+        if (counterStringSplitted.length() < 7)
+        {
+            QMessageBox::warning(this, QString("File parsing error"), QString("File %1 has uncorrect line %2 (%3) - uncorrect format (correct - X1. X2: X3 - X4 - X5, where X1 - index, X2 - name, X3 - min, X4 - mid, X5 - max)").
+                                 arg(fileName).arg(i + 1).arg(dataLines[i + 1]));
+            return false;
+        }
+        tempStatistic[i].min = counterStringSplitted[2].toDouble(&conversionSuccess);
+        if (!conversionSuccess)
+        {
+            QMessageBox::warning(this, QString("File parsing error"), QString("File %1 has uncorrect line %2 (%3) - min value (%4) not double").
+                                 arg(fileName).arg(i + 1).arg(dataLines[i + 1]).arg(counterStringSplitted[2]));
+            return false;
+        }
+        tempStatistic[i].sum = counterStringSplitted[4].toDouble(&conversionSuccess) * tempStatisticCounter;
+        if (!conversionSuccess)
+        {
+            QMessageBox::warning(this, QString("File parsing error"), QString("File %1 has uncorrect line %2 (%3) - mid value (%4) not double").
+                                 arg(fileName).arg(i + 1).arg(dataLines[i + 1]).arg(counterStringSplitted[4]));
+            return false;
+        }
+        tempStatistic[i].max = counterStringSplitted[6].toDouble(&conversionSuccess);
+        if (!conversionSuccess)
+        {
+            QMessageBox::warning(this, QString("File parsing error"), QString("File %1 has uncorrect line %2 (%3) - max value (%4) not double").
+                                 arg(fileName).arg(i + 1).arg(dataLines[i + 1]).arg(counterStringSplitted[6]));
+            return false;
+        }
     }
+
+    currentStatistic = tempStatistic;
+    *counter = tempStatisticCounter;
+
+    return true;
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------

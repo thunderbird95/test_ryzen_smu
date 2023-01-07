@@ -321,6 +321,23 @@ RyzenControl::~RyzenControl()
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
+void RyzenControl::closeEvent(QCloseEvent *event)
+{
+    m_graphsWidget.close();
+    m_statisticWidget.close();
+    event->accept();
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------------
+int RyzenControl::setRegValue(bool isPsmu, uint32_t address, uint32_t value0, uint32_t value1, uint32_t value2)
+{
+    m_periodicTimer.stop();
+    int result = m_apuDriver.setValueToSmu(m_ry, isPsmu, address, value0, value1, value2);
+    m_periodicTimer.start();
+    return result;
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------------
 void RyzenControl::updateData()
 {
     int errorcode = m_apuDriver.refresh_table(m_ry);

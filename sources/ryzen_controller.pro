@@ -15,7 +15,8 @@ SOURCES += \
     qcustomplot.cpp \
     ryzen_control.cpp \
     smu.cpp \
-    statistic.cpp
+    statistic.cpp \
+    test_settings.cpp
 
 HEADERS += \
     apu_driver.h \
@@ -24,12 +25,14 @@ HEADERS += \
     qcustomplot.h \
     ryzen_control.h \
     smu.h \
-    statistic.h
+    statistic.h \
+    test_settings.h
 
 FORMS += \
     graphs.ui \
     ryzen_control.ui \
-    statistic.ui
+    statistic.ui \
+    test_settings.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

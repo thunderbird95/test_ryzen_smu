@@ -392,6 +392,23 @@ do {                                                 \
     }                                                \
 } while (0);
 
+#define _do_adjust3(OPT) \
+do {                                                 \
+    smu_service_args_t args = {0, 0, 0, 0, 0, 0};    \
+    int resp;										 \
+    args.arg0 = value0;                               \
+    args.arg1 = value1;                               \
+    args.arg2 = value2;                               \
+    resp = smu.smu_service_req(ry->mp1_smu, OPT, &args); \
+    if (resp == REP_MSG_OK) {                        \
+        return 0;                                    \
+    } else if (resp == REP_MSG_UnknownCmd) {         \
+        return ADJ_ERR_SMU_UNSUPPORTED;              \
+    } else {                                         \
+        return ADJ_ERR_SMU_REJECTED;                 \
+    }                                                \
+} while (0);
+
 
 #define _do_adjust_psmu(OPT) \
 do {                                                 \
@@ -413,6 +430,21 @@ do {                                                 \
     smu_service_args_t args = {0, 0, 0, 0, 0, 0};    \
     int resp;										 \
     args.arg0 = value0; args.arg1 = value1;          \
+    resp = smu.smu_service_req(ry->psmu, OPT, &args); \
+    if (resp == REP_MSG_OK) {                        \
+        return 0;                                    \
+    } else if (resp == REP_MSG_UnknownCmd) {         \
+        return ADJ_ERR_SMU_UNSUPPORTED;              \
+    } else {                                         \
+        return ADJ_ERR_SMU_REJECTED;                 \
+    }                                                \
+} while (0);
+
+#define _do_adjust_psmu3(OPT) \
+do {                                                 \
+    smu_service_args_t args = {0, 0, 0, 0, 0, 0};    \
+    int resp;										 \
+    args.arg0 = value0; args.arg1 = value1; args.arg2 = value2; \
     resp = smu.smu_service_req(ry->psmu, OPT, &args); \
     if (resp == REP_MSG_OK) {                        \
         return 0;                                    \
@@ -445,6 +477,15 @@ int ApuDriver::setValueToSmu(ryzen_access ry, bool ispSmu, uint32_t address, uin
         _do_adjust2(address);
     if (ispSmu)
         _do_adjust_psmu2(address);
+    return ADJ_ERR_FAM_UNSUPPORTED;
+}
+
+int ApuDriver::setValueToSmu(ryzen_access ry, bool ispSmu, uint32_t address, uint32_t value0, uint32_t value1, uint32_t value2)
+{
+    if (!ispSmu)
+        _do_adjust3(address);
+    if (ispSmu)
+        _do_adjust_psmu3(address);
     return ADJ_ERR_FAM_UNSUPPORTED;
 }
 

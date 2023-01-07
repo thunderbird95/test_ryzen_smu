@@ -71,6 +71,8 @@ Graphs::Graphs(QWidget *parent) :
 
    connect(ui->loadPreset, &QPushButton::clicked, this, &Graphs::loadPreset);
    connect(ui->savePreset, &QPushButton::clicked, this, &Graphs::savePreset);
+
+
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
@@ -94,11 +96,14 @@ void Graphs::setDescriptions(QVector<QString> descriptions)
         if (!((descriptions[i].contains(QString("UNKNOWN"))) || (descriptions[i].contains(QString("limit"))) || (descriptions[i].contains(QString("time")))))
             m_plotVisibleGraphs.last()->setChecked(true);
         connect(m_plotVisibleGraphs.last(), &QCheckBox::clicked, this, &Graphs::displayGraphInternal);
+        connect(m_plotVisibleGraphs.last(), &QCheckBox::clicked, this, &Graphs::savePreset);
     }
 
     ui->scrollArea->setWidget(m_scrollAreaWidget);
 
     m_isFirstRun = true;
+
+    loadPreset();
 //    QCheckBox* widget;
 //    for (int i = 0; i < descriptions.length(); i++)
 //    {
@@ -338,14 +343,26 @@ void Graphs::displayGraphInternal()
 //-----------------------------------------------------------------------------------------------------------------------------------
 void Graphs::loadPreset()
 {
-    QString loadFileName = QFileDialog::getOpenFileName(this);
-    if (loadFileName.isEmpty())
-        return;
+    QPushButton* sender = qobject_cast<QPushButton*>(this->sender());
+    QString loadFileName;
+    if (sender == 0)
+        loadFileName = QString("saved_graph_preset.txt");
+    else
+    {
+        loadFileName = QFileDialog::getOpenFileName(this);
+        if (loadFileName.isEmpty())
+            return;
+    }
+
+//    QString loadFileName = QFileDialog::getOpenFileName(this);
+//    if (loadFileName.isEmpty())
+//        return;
 
     QFile loadedFile(loadFileName);
     if (!loadedFile.open(QFile::ReadOnly))
     {
-        QMessageBox::warning(this, QString("Open file error"), QString("Cannot open file %1").arg(loadFileName));
+        if (sender != 0)
+            QMessageBox::warning(this, QString("Open file error"), QString("Cannot open file %1").arg(loadFileName));
         return;
     }
     QString data = QString::fromLocal8Bit(loadedFile.readAll()).simplified();
@@ -370,9 +387,16 @@ void Graphs::loadPreset()
 //-----------------------------------------------------------------------------------------------------------------------------------
 void Graphs::savePreset()
 {
-    QString saveFileName = QFileDialog::getSaveFileName(this);
-    if (saveFileName.isEmpty())
-        return;
+    QPushButton* sender = qobject_cast<QPushButton*>(this->sender());
+    QString saveFileName;
+    if (sender == 0)
+        saveFileName = QString("saved_graph_preset.txt");
+    else
+    {
+        saveFileName = QFileDialog::getSaveFileName(this);
+        if (saveFileName.isEmpty())
+            return;
+    }
 
     QStringList data;
     for (int i = 0; i < m_plotVisibleGraphs.length(); i++)

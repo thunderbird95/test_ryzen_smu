@@ -52,6 +52,7 @@ public:
 
     int setValueToSmu(ryzen_access ry, bool ispSmu, uint32_t address, uint32_t value);
     int setValueToSmu(ryzen_access ry, bool ispSmu, uint32_t address, uint32_t value0, uint32_t value1);
+    int setValueToSmu(ryzen_access ry, bool ispSmu, uint32_t address, uint32_t value0, uint32_t value1, uint32_t value2);
 
     EXP int CALL set_stapm_limit(ryzen_access, uint32_t value);
     EXP int CALL set_fast_limit(ryzen_access, uint32_t value);

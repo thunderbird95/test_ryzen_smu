@@ -47,6 +47,9 @@ public:
     RyzenControl(QWidget *parent = nullptr);
     ~RyzenControl();
 
+    // Sets value of the register
+    int setRegValue(bool isPsmu, uint32_t address, uint32_t value0, uint32_t value1 = 0, uint32_t value2 = 0);
+
 signals:
 
     // Display data
@@ -54,6 +57,11 @@ signals:
 
     // Update values
     void currentValuesUpdate(QVector<float> values);
+
+private slots:
+
+    // Closes all windows
+    void closeEvent(QCloseEvent *event);
 
 private:
 

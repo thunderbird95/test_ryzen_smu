@@ -3,9 +3,13 @@
 
 #include <QWidget>
 
+#include "test_settings.h"
+
 namespace Ui {
 class Statistic;
 }
+
+#define MIN_QREAL_DIFF  0.00001
 
 typedef struct  {
     qreal min;
@@ -40,6 +44,17 @@ public slots:
     // Append new values to statistic
     void handleNewValues(QVector<float> newValues);
 
+    // Save statistic to file
+    void saveStatistic();
+
+    // Load statistic from file
+    void loadStatistic();
+
+private slots:
+
+    // Closes all windows
+    void closeEvent(QCloseEvent *event);
+
 signals:
 
     // Sends error and description
@@ -49,6 +64,9 @@ private:
 
     // Widget
     Ui::Statistic *ui;
+
+    // Test settings widget
+    TestSettings m_testSettingsWidget;
 
     // Parent
     RyzenControl* m_ryzenControl;
@@ -75,7 +93,7 @@ private:
     void saveStatisticToFile(QVector<StatisticData>& currentStatistic, int counter, QString fileName);
 
     // Loads statistic data from file (returns error description, or empty string, if no errors detected)
-    void loadStatisticFromFile(QVector<StatisticData>& currentStatistic, int* counter, QString fileName);
+    bool loadStatisticFromFile(QVector<StatisticData>& currentStatistic, int* counter, QString fileName);
 };
 
 #endif // STATISTIC_H
