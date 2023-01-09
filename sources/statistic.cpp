@@ -7,6 +7,7 @@
 #include <QScrollBar>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QDateTime>
 
 //-----------------------------------------------------------------------------------------------------------------------------------
 Statistic::Statistic(QWidget *parent) :
@@ -15,7 +16,7 @@ Statistic::Statistic(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    m_ryzenControl = static_cast<RyzenControl*>(this->parent());
+    //m_ryzenControl = static_cast<RyzenControl*>(this->parent());
 
     connect(ui->clearReferenceStatistic, &QPushButton::clicked, this, [ this ] () {
         m_referenceStatisticCounter = 0; m_referenceStatistic.fill({ .min = 0, .max = 0, .sum = 0 });
@@ -35,6 +36,24 @@ Statistic::Statistic(QWidget *parent) :
     connect(ui->loadReference, &QPushButton::clicked, this, &Statistic::loadStatistic);
     connect(ui->saveCurrent, &QPushButton::clicked, this, &Statistic::saveStatistic);
     connect(ui->loadCurrent, &QPushButton::clicked, this, &Statistic::loadStatistic);
+
+//    m_testDisablingWidgets << ui->loadReference << ui->saveReference << ui->loadCurrent << ui->saveCurrent << ui->clearCurrentStatistic
+//                           << ui->clearReferenceStatistic << ui->enableCollectCurrentStatistic << ui->enableCollectReferenceStatistic;
+    m_testDisablingWidgets.append(ui->enableCollectReferenceStatistic);
+    m_testDisablingWidgets.append(ui->loadReference);
+    m_testDisablingWidgets.append(ui->saveReference);
+    m_testDisablingWidgets.append(ui->clearReferenceStatistic);
+    m_testDisablingWidgets.append(ui->enableCollectCurrentStatistic);
+    m_testDisablingWidgets.append(ui->loadCurrent);
+    m_testDisablingWidgets.append(ui->saveCurrent);
+    m_testDisablingWidgets.append(ui->clearCurrentStatistic);
+
+    connect(ui->startTest, &QPushButton::clicked, this, &Statistic::startTest);
+    connect(ui->stopTest, &QPushButton::clicked, [ this ] () {
+        foreach(QWidget* widget, m_testDisablingWidgets)    widget->setEnabled(true);
+        if (!m_testState.isEnabled) return;
+        m_testSettingsWidget.requestSettingsDescription();
+        m_testState.isEnabled = false; testLog(QString("Test aborted by user")); } );
 
     connect(ui->viewTestSettings, &QPushButton::clicked, &m_testSettingsWidget, &TestSettings::show);
 
@@ -184,6 +203,8 @@ void Statistic::handleNewValues(QVector<float> newValues)
         displayStatistic(*currentStatistic, *counter, table, counterLabel, newValues);
     else
         displayStatistic(*currentStatistic, *counter, table, counterLabel, newValues, *referenceStatistic);
+
+    testProcess();
     return;
 
 #if 0
@@ -382,7 +403,150 @@ bool Statistic::loadStatisticFromFile(QVector<StatisticData> &currentStatistic, 
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
+void Statistic::startTest()
+{
+    if (!m_testSettingsWidget.getSettings(&m_testSettingsData/*m_testSettingsData.mp1smuAddresses, m_testSettingsData.psmuAddresses, m_testSettingsData.values0, m_testSettingsData.values1, &(m_testSettingsData.oneValuePeriod)*/))
+    {
+        QMessageBox::warning(this, QString("Start test error"), QString("Some errors in test settings detected (check firmware)"));
+        return;
+    }
 
+    if (m_referenceStatisticCounter < 1)
+    {
+        QMessageBox::warning(this, QString("Start test error"), QString("No reference staistic!"));
+        return;
+    }
 
+    m_currentStatisticCounter = 0;
+    m_currentStatistic.fill({ .min = 0, .max = 0, .sum = 0 });
+    displayStatistic(m_currentStatistic, m_currentStatisticCounter, ui->currentTable, ui->currentStatisticCounter);
+
+    ui->enableCollectReferenceStatistic->setChecked(false);
+    ui->enableCollectCurrentStatistic->setChecked(true);
+    foreach(QWidget* widget, m_testDisablingWidgets)
+        widget->setEnabled(false);
+
+    m_testState.logFileName = QString("Test_%1.txt").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh:mm:ss"));
+    QFile logFile(m_testState.logFileName);
+    if (!logFile.open(QFile::WriteOnly))
+    {
+        ui->log->appendPlainText(QString("Cannot open log file %1\n").arg(m_testState.logFileName));
+        return;
+    }
+    logFile.close();
+    testLog(QString("Test started, description: %1").arg(ui->labelTestSettingsDescription->text()));
+    testLog(QString("Extended description: %1").arg(ui->labelTestSettingsDescription->toolTip()));
+    testLog(QString());
+    m_testState.testsCounter = -1;
+    m_testState.isEnabled = true;
+    m_testState.lastCommandOk = false;
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------------
+void Statistic::testProcess()
+{
+    if (!m_testState.isEnabled)
+        return;
+
+    int addressesCount = m_testSettingsData.mp1smuAddresses.length() + m_testSettingsData.psmuAddresses.length();
+    int allTestsCount = addressesCount * m_testSettingsData.values0.length() * m_testSettingsData.values1.length();
+
+    if ((m_currentStatisticCounter >= m_testSettingsData.oneValuePeriod) || (!m_testState.lastCommandOk))
+    {
+        if (m_testState.lastCommandOk)
+        {
+            for (int i = 0; i < m_currentStatistic.length(); i++)
+            {
+                if ((m_currentStatistic[i].min < (m_referenceStatistic[i].min * (1.0 - m_testSettingsData.avaluableDiff / 100.0) - MIN_QREAL_DIFF)) ||
+                        (m_currentStatistic[i].max > (m_referenceStatistic[i].max * (1.0 + m_testSettingsData.avaluableDiff / 100.0) + MIN_QREAL_DIFF)))
+                {
+                    QString referenceStatisticString = QString("%3 - %4 - %5").arg(QString::number(m_referenceStatistic[i].min, 'f', 3)).
+                            arg(QString::number(m_referenceStatistic[i].sum / m_referenceStatisticCounter, 'f', 3)).arg(QString::number(m_referenceStatistic[i].max, 'f', 3));
+                    QString currentStatisticString = QString("%3 - %4 - %5").arg(QString::number(m_currentStatistic[i].min, 'f', 3)).
+                            arg(QString::number(m_currentStatistic[i].sum / m_currentStatisticCounter, 'f', 3)).arg(QString::number(m_currentStatistic[i].max, 'f', 3));
+                    qreal minDiffPercent = (m_referenceStatistic[i].min - m_currentStatistic[i].min) * 100.0 / m_referenceStatistic[i].min;
+                    qreal maxDiffPercent = (m_currentStatistic[i].max - m_referenceStatistic[i].max) * 100.0 / m_referenceStatistic[i].max;
+                    if (qIsNaN(minDiffPercent))
+                        minDiffPercent = 0.0;
+                    if (qIsNaN(maxDiffPercent))
+                        maxDiffPercent = 0.0;
+                    qreal maxPercent = qMax(minDiffPercent, maxDiffPercent);
+                    QString maxLabel = (minDiffPercent > maxDiffPercent) ? QString("MIN") : QString("MAX");
+                    testLog(QString("%1. %2: %3 --> %4 (%5 %6 %)").arg(i).arg(m_names[i]).arg(referenceStatisticString).arg(currentStatisticString).arg(maxLabel).arg(maxPercent));
+//                    testLog(QString("%1. %2: %3 - %4 - %5 --> %6 - %7 - %8").arg(i).arg(m_names[i]).
+//                            arg(QString::number(m_referenceStatistic[i].min, 'f', 3)).arg(QString::number(m_referenceStatistic[i].sum / m_referenceStatisticCounter, 'f', 3)).
+//                            arg(QString::number(m_referenceStatistic[i].max, 'f', 3)).arg(QString::number(m_currentStatistic[i].min, 'f', 3)).
+//                            arg(QString::number(m_currentStatistic[i].sum / m_currentStatisticCounter, 'f', 3)).arg(QString::number(m_currentStatistic[i].max, 'f', 3)));
+                }
+            }
+        }
+
+        testLog(QString());
+
+        m_currentStatisticCounter = 0;
+        m_currentStatistic.fill({ .min = 0, .max = 0, .sum = 0 });
+
+        m_testState.testsCounter++;
+        if (m_testState.testsCounter >= allTestsCount)
+        {
+            // TEST ENDED
+            foreach(QWidget* widget, m_testDisablingWidgets)
+                widget->setEnabled(true);
+            m_testState.isEnabled = false;
+            testLog(QString("Test ended"));
+            m_testSettingsWidget.requestSettingsDescription();
+            return;
+        }
+
+        int temp = m_testState.testsCounter;
+        int value1counter = temp % m_testSettingsData.values1.length();
+        temp /= m_testSettingsData.values1.length();
+        int value0counter = temp % m_testSettingsData.values0.length();
+        temp /= m_testSettingsData.values0.length();
+        if (temp >= addressesCount)
+        {
+            QMessageBox::critical(this, QString("Test process error"),
+                                  QString("Test counter value (%1) uncorrect. Addresses count - %2, values0 count - %3, values1 count - %4. Check firmware").
+                                  arg(m_testState.testsCounter).arg(addressesCount).arg(m_testSettingsData.values0.length()).arg(m_testSettingsData.values1.length()));
+            return;
+        }
+        bool isPsmu = false;
+        if (temp >= m_testSettingsData.mp1smuAddresses.length())
+        {
+            isPsmu = true;
+            temp -= m_testSettingsData.mp1smuAddresses.length();
+        }
+
+        int address = isPsmu ? m_testSettingsData.psmuAddresses[temp] : m_testSettingsData.mp1smuAddresses[temp];
+        QString commandResult = m_ryzenControl->setRegValue(isPsmu, address, m_testSettingsData.values0[value0counter], m_testSettingsData.values1[value1counter]);
+        m_testState.lastCommandOk = commandResult.isEmpty();
+        if (commandResult.isEmpty())
+            testLog(QString("Command %1; addr = %2; value[0] = %3; value[1] = %4; OK").arg(isPsmu ? QString("PSMU") : QString("MP1_SMU")).arg(address).
+                  arg(m_testSettingsData.values0[value0counter]).arg(m_testSettingsData.values1[value1counter]));
+        else
+            testLog(QString("Command %1; addr = %2; value[0] = %3; value[1] = %4; ERROR - %5").arg(isPsmu ? QString("PSMU") : QString("MP1_SMU")).arg(address).
+                  arg(m_testSettingsData.values0[value0counter]).arg(m_testSettingsData.values1[value1counter]).arg(commandResult));
+    }
+
+    ui->labelTestSettingsDescription->setText(QString("Test execution %1/%2 (%3%), value statistic %4/%5").arg(m_testState.testsCounter).arg(allTestsCount).
+                                              arg(m_testState.testsCounter * 100 / allTestsCount).arg(m_currentStatisticCounter).arg(m_testSettingsData.oneValuePeriod));
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------------
+void Statistic::testLog(QString message)
+{
+    QString currentLine = QString("\n");
+    if (!message.isEmpty())
+        currentLine = QString("%1. %2\n").arg(QDateTime::currentDateTime().toString("hh:mm:ss")).arg(message);
+    ui->log->appendPlainText(currentLine.left(currentLine.length() - 1));
+    QFile logFile(m_testState.logFileName);
+    if (!logFile.open(QFile::Append))
+    {
+        ui->log->appendPlainText(QString("Cannot open log file %1").arg(m_testState.logFileName));
+        return;
+    }
+    logFile.write(currentLine.toLocal8Bit());
+    logFile.close();
+}
 
 //-----------------------------------------------------------------------------------------------------------------------------------

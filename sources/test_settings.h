@@ -7,6 +7,15 @@ namespace Ui {
 class TestSettings;
 }
 
+typedef struct  {
+    QVector<int> mp1smuAddresses;
+    QVector<int> psmuAddresses;
+    QVector<int> values0;
+    QVector<int> values1;
+    int oneValuePeriod;
+    qreal avaluableDiff;
+}   TestSettingsData;
+
 class TestSettings : public QWidget
 {
     Q_OBJECT
@@ -19,7 +28,7 @@ public:
     QString description();
 
     // Gets all settings
-    bool getSettings(QVector<int>& mp1smuAddresses, QVector<int>& psmuAddresses, QVector<int>& values0, QVector<int>& values1, int* statisticPeriod);
+    bool getSettings(TestSettingsData* data/*QVector<int>& mp1smuAddresses, QVector<int>& psmuAddresses, QVector<int>& values0, QVector<int>& values1, int* statisticPeriod*/);
 
     // Requests settings description signal
     void requestSettingsDescription();
@@ -63,6 +72,9 @@ private:
 
     // Period of statistic for each value changing
     int m_statisticPeriod;
+
+    // Avaluable difference in percents
+    qreal m_avaluableDifference;
 
     // Flag of applicable settings
     bool m_rightFlag;

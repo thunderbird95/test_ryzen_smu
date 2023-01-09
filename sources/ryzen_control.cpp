@@ -311,6 +311,8 @@ RyzenControl::RyzenControl(QWidget *parent)
 
     connect(ui->openStatisticWidget, &QPushButton::clicked, &m_statisticWidget, &Statistic::show);
     connect(this, &RyzenControl::currentValuesUpdate, &m_statisticWidget, &Statistic::handleNewValues);
+
+    m_statisticWidget.setRyzenControlLink(this);
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
@@ -329,12 +331,27 @@ void RyzenControl::closeEvent(QCloseEvent *event)
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
-int RyzenControl::setRegValue(bool isPsmu, uint32_t address, uint32_t value0, uint32_t value1, uint32_t value2)
+QString RyzenControl::setRegValue(bool isPsmu, uint32_t address, uint32_t value0, uint32_t value1, uint32_t value2)
 {
     m_periodicTimer.stop();
     int result = m_apuDriver.setValueToSmu(m_ry, isPsmu, address, value0, value1, value2);
     m_periodicTimer.start();
-    return result;
+    QString resultDescription = QString();
+    switch (result)
+    {
+        case 0:
+            // ALL OK
+            break;
+        case ADJ_ERR_SMU_REJECTED:
+            resultDescription = QString("COMMAND REJECTED");
+            break;
+        case ADJ_ERR_SMU_UNSUPPORTED:
+            resultDescription = QString("COMMAND UNSUPPORTED");
+            break;
+        default:
+            resultDescription = QString("UNKNOWN RESULT (%1)").arg(result);
+    }
+    return resultDescription;
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------

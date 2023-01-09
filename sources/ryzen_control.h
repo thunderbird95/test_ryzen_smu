@@ -48,7 +48,7 @@ public:
     ~RyzenControl();
 
     // Sets value of the register
-    int setRegValue(bool isPsmu, uint32_t address, uint32_t value0, uint32_t value1 = 0, uint32_t value2 = 0);
+    QString setRegValue(bool isPsmu, uint32_t address, uint32_t value0, uint32_t value1 = 0, uint32_t value2 = 0);
 
 signals:
 

@@ -20,6 +20,7 @@ TestSettings::TestSettings(QWidget *parent) :
 #endif
 
     connect(ui->statisticPeriod, static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged), [ this ] (int value) { m_statisticPeriod = value; displaySettings(); } );
+    connect(ui->avaluableDiff, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), [ this ] (double value) { m_avaluableDifference = value; displaySettings(); } );
     connect(ui->addMp1SmuAddress, &QPushButton::clicked, [ this ] () {
         appendRangeToVector(QPair<int,int>(ui->minRangeValue->value(), ui->maxRangeValue->value()), m_mp1smuAddresses); displaySettings();
     } );
@@ -97,6 +98,7 @@ TestSettings::TestSettings(QWidget *parent) :
     m_values0.append(QPair<int,int>(1000,1000));
     m_values1.append(QPair<int,int>(0,0));
     m_statisticPeriod = 100;
+    m_avaluableDifference = 1.0;
 
     loadSettings();
     displaySettings();
@@ -127,20 +129,29 @@ QString TestSettings::description()
     if (!m_rightFlag)
         result = QString("Errors in test settings: %1").arg(errors.join(QString(", ")));
     else
-        result = QString("Mp1 SMU + PSMU addresses: %1 + %2 = %3\nValues[0] - %4, values[1] - %5\nOne test period - %6. All tests time ~ %7").
+        result = QString("Mp1 SMU + PSMU addresses: %1 + %2 = %3\nValues[0] - %4, values[1] - %5\nOne test period - %6. Avaluable difference - %7%\nAll tests time ~ %8").
                 arg(mp1SmuAddressesCount).arg(psmuAddressesCount).arg(mp1SmuAddressesCount + psmuAddressesCount).arg(values0count).arg(values1count).arg(m_statisticPeriod).
-                arg((mp1SmuAddressesCount + psmuAddressesCount) * values0count * values1count * m_statisticPeriod);
+                arg(QString::number(m_avaluableDifference, 'f', 2)).arg((mp1SmuAddressesCount + psmuAddressesCount) * values0count * values1count * m_statisticPeriod);
     return result;
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------
-bool TestSettings::getSettings(QVector<int> &mp1smuAddresses, QVector<int> &psmuAddresses, QVector<int> &values0, QVector<int> &values1, int *statisticPeriod)
+bool TestSettings::getSettings(TestSettingsData* data/*QVector<int> &mp1smuAddresses, QVector<int> &psmuAddresses, QVector<int> &values0, QVector<int> &values1, int *statisticPeriod*/)
 {
+#if 0
     mp1smuAddresses = rangesToVector(m_mp1smuAddresses);
     psmuAddresses = rangesToVector(m_psmuAddresses);
     values0 = rangesToVector(m_values0);
     values1 = rangesToVector(m_values1);
     *statisticPeriod = ui->statisticPeriod->value();
+#else
+    data->mp1smuAddresses = rangesToVector(m_mp1smuAddresses);
+    data->psmuAddresses = rangesToVector(m_psmuAddresses);
+    data->values0 = rangesToVector(m_values0);
+    data->values1 = rangesToVector(m_values1);
+    data->oneValuePeriod = m_statisticPeriod;
+    data->avaluableDiff = m_avaluableDifference;
+#endif
     return m_rightFlag;
 }
 
@@ -178,11 +189,13 @@ void TestSettings::loadSettings()
     // Temp values
     QVector<QPair<int,int>> mp1smuAddresses, psmuAddresses, values0, values1;
     int statisticPeriod;
+    qreal avaluableDifference;
     bool mp1smuAddressesFlag = false;
     bool psmuAddressesFlag = false;
     bool values0flag = false;
     bool values1flag = false;
     bool statisticPeriodFlag = false;
+    bool avaluableDiffFlag = false;
 
     foreach (QString line, dataLines)
     {
@@ -195,6 +208,14 @@ void TestSettings::loadSettings()
             if ((!conversionSuccess) || (statisticPeriod <= 0))
                 QMessageBox::warning(this, QString("Parsing error"), QString("Error in line %1: %2 is not positive integer value").
                                      arg(line).arg(line.mid(QString("Statistic period:").length())));
+        }
+        else if (line.left(QString("Avaluable difference:").length()) == QString("Avaluable difference:"))
+        {
+            avaluableDifference = line.mid(QString("Avaluable difference:").length()).toDouble(&conversionSuccess);
+            avaluableDiffFlag = true;
+            if ((!conversionSuccess) || (avaluableDifference <= 0))
+                QMessageBox::warning(this, QString("Parsing error"), QString("Error in line %1: %2 is not positive double value").
+                                     arg(line).arg(line.mid(QString("Avaluable difference:").length())));
         }
         else if (line.left(QString("Mp1 SMU addresses:").length()) == QString("Mp1 SMU addresses:"))
         {
@@ -227,6 +248,7 @@ void TestSettings::loadSettings()
     if (!values0flag)   errors.append(QString("no Values[0] line found"));
     if (!values1flag)   errors.append(QString("no Values[1] line found"));
     if (!statisticPeriodFlag)   errors.append(QString("no Statistic period line found"));
+    if (!avaluableDiffFlag)   errors.append(QString("no Avaluable difference line found"));
 
     if (!errors.isEmpty())
     {
@@ -261,6 +283,7 @@ void TestSettings::saveSettings()
     QStringList data;
     data.append(QString("Description: %1").arg(description()));
     data.append(QString("Statistic period: %1").arg(m_statisticPeriod));
+    data.append(QString("Avaluable difference: %1").arg(m_avaluableDifference));
     data.append(QString("Mp1 SMU addresses: %1").arg(rangesToString(m_mp1smuAddresses)));
     data.append(QString("PSMU addresses: %1").arg(rangesToString(m_psmuAddresses)));
     data.append(QString("Values[0]: %1").arg(rangesToString(m_values0)));
@@ -292,6 +315,7 @@ void TestSettings::displaySettings()
     for (int i = 0; i < m_values1.length(); i++)
         ui->value1_list->addItem(rangeToString(m_values1[i]));
     ui->statisticPeriod->setValue(m_statisticPeriod);
+    ui->avaluableDiff->setValue(m_avaluableDifference);
     ui->labelTestSettingsDescription->setText(description());
     saveSettings();
 

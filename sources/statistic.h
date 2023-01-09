@@ -19,6 +19,22 @@ typedef struct  {
 //    int count;
 }   StatisticData;
 
+//typedef struct  {
+//    QVector<int> mp1smuAddresses;
+//    QVector<int> psmuAddresses;
+//    QVector<int> values0;
+//    QVector<int> values1;
+//    int oneValuePeriod;
+//}   TestSettingsData;
+
+typedef struct  {
+    bool isEnabled;
+    int testsCounter;
+    bool lastCommandOk;
+    //int periodCounter;
+    QString logFileName;
+}   TestState;
+
 class RyzenControl;
 class QTableWidget;
 class QLabel;
@@ -55,6 +71,9 @@ private slots:
     // Closes all windows
     void closeEvent(QCloseEvent *event);
 
+    // Starts test
+    void startTest();
+
 signals:
 
     // Sends error and description
@@ -86,6 +105,15 @@ private:
     // Current statistic counter
     int m_currentStatisticCounter;
 
+    //
+    TestSettingsData m_testSettingsData;
+
+    //
+    TestState m_testState;
+
+    // Widgets, that must be disabled, when test is active
+    QList<QWidget*> m_testDisablingWidgets;
+
     // Fills reference statistic table
     void displayStatistic(QVector<StatisticData> currentStatistic, int counter, QTableWidget* table, QLabel* counterLabel, QVector<float> currentValues = QVector<float>(), QVector<StatisticData> referenceStatistic = QVector<StatisticData>());
 
@@ -94,6 +122,12 @@ private:
 
     // Loads statistic data from file (returns error description, or empty string, if no errors detected)
     bool loadStatisticFromFile(QVector<StatisticData>& currentStatistic, int* counter, QString fileName);
+
+    //
+    void testProcess();
+
+    //
+    void testLog(QString message);
 };
 
 #endif // STATISTIC_H

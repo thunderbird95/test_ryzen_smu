@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>668</width>
+    <width>776</width>
     <height>460</height>
    </rect>
   </property>
@@ -325,6 +325,23 @@
           </size>
          </property>
         </spacer>
+       </item>
+       <item>
+        <widget class="QLabel" name="labelAvaluableDiff">
+         <property name="text">
+          <string>Avaluable difference</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QDoubleSpinBox" name="avaluableDiff">
+         <property name="suffix">
+          <string> %</string>
+         </property>
+         <property name="value">
+          <double>1.000000000000000</double>
+         </property>
+        </widget>
        </item>
       </layout>
      </item>
